@@ -1,5 +1,6 @@
-
 # Overview of python-mapbind
+
+[![Build Status](https://travis-ci.org/obriencj/python-mapbind.svg?branch=master)](https://travis-ci.org/obriencj/python-mapbind)
 
 Inspects its calling frame to figure out how you were going to bind
 its results, then finds keys by those names in the given mapping and
