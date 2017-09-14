@@ -21,46 +21,182 @@ license: LGPL v.3
 """
 
 
-from inspect import currentframe
-from dis import get_instructions
+__all__ = ("mapbind", "objbind", "fnbind", )
 
 
-__all__ = ("mapbind", )
+def setup():
+
+    from inspect import currentframe
+    from sys import version_info
+
+    if (2, 5) <= version_info < (3, 0):
+        # okay, we're being loaded in a Python 2 environment. There's
+        # no dis.get_instructions to import, so we'll have to make one
+        # from scratch, like biscuits.
+
+        from collections import namedtuple
+        from dis import opname, \
+            HAVE_ARGUMENT, EXTENDED_ARG, \
+            hasname, haslocal, hasfree
+        from functools import partial
+
+        Instr = namedtuple("Instruction", ["offset", "opname", "argval"])
+
+        def get_instructions(code_obj):
+            """
+            a cheap knock-off of the get_instructions function from the
+            Python3 version of the dis module. In this case, since we
+            only care about some of the opcodes, we're only filling
+            all the data for those ones in.
+            """
+
+            code = code_obj.co_code
+            free_names = code_obj.co_cellvars + code_obj.co_freevars
+            extended_arg = 0
+            n = len(code)
+            i = 0
+
+            while i < n:
+                c = code[i]
+                op = ord(c)
+
+                instr = partial(Instr, i, opname[op])
+
+                i += 1
+                if op >= HAVE_ARGUMENT:
+                    oparg = ord(code[i]) | (ord(code[i + 1]) << 8)
+                    oparg |= extended_arg
+                    extended_arg = 0
+                    i += 2
+
+                    if op == EXTENDED_ARG:
+                        extended_arg = oparg << 16
+
+                    if op in hasname:
+                        yield instr(code_obj.co_names[oparg])
+                    elif op in haslocal:
+                        yield instr(code_obj.co_varnames[oparg])
+                    elif op in hasfree:
+                        yield instr(free_names[oparg])
+                    else:
+                        yield instr(oparg)
+                else:
+                    yield instr(None)
 
 
-def mapbind(source_map):
-    """
-    Find just the values for the bindings you were going to ask for.
-    """
+    elif (3, 3) <= version_info:
+        # oh thank goodness, a good version of Python
+        from dis import get_instructions
 
-    # find our calling frame, and the index of the op that called us
-    caller = currentframe().f_back
-    code = caller.f_code
-    index = caller.f_lasti
 
-    # disassemble the instructions for the calling frame, and advance
-    # past our calling op's index
-    iterins = get_instructions(code)
-    for instr in iterins:
-        if instr.offset > index:
-            break
+    class RaiseError(object):
+        def __repr__(self):
+            return "<raise an error>"
 
-    if instr.opname != "UNPACK_SEQUENCE":
-        # someone invoked us without being the right-hand side of an
-        # unpack assignment, do let's be a noop
-        return source_map
+    # this is a default object for mapbind and objbind. We use it
+    # instead of None because None is a perfectly valid default value.
+    raise_error = RaiseError()
 
-    # this is the number of assignments being unpacked, we'll get that
-    # many STORE_ ops from the bytecode
-    count = instr.argval
 
-    # each STORE_ op has an argval which is the name it would assign
-    # to. This is just a convenience that the dis module fills in!
-    dest_keys = (next(iterins).argval for _ in range(0, count))
+    def bindings(caller):
+        """
+        Find the names for the bindings
+        """
 
-    # finally, just return a generator that'll provide the values from
-    # the source_map that match to the bindings
-    return (source_map[dest] for dest in dest_keys)
+        # find our calling frame, and the index of the op that called us
+        code = caller.f_code
+        index = caller.f_lasti
+
+        # disassemble the instructions for the calling frame, and advance
+        # past our calling op's index
+        iterins = get_instructions(code)
+        for instr in iterins:
+            if instr.offset > index:
+                break
+
+        if instr.opname != "UNPACK_SEQUENCE":
+            # someone invoked us without being the right-hand side of an
+            # unpack assignment, do let's be a noop
+            raise ValueError("binding called without being the right-hand"
+                             " of an unpack assignment")
+
+        # this is the number of assignments being unpacked, we'll get that
+        # many STORE_ ops from the bytecode
+        count = instr.argval
+
+        # each STORE_ op has an argval which is the name it would assign
+        # to. This is just a convenience that the dis module fills in!
+        return (next(iterins).argval for _ in range(0, count))
+
+
+    def mapbind(source_map, default=raise_error):
+        """
+        Obtains value for each matching key from source_map for each
+        binding. If default is not provided, will raise KeyError if
+        there's no matching mapping.
+
+        eg.
+        data = {"a": 100, "b": 200, "c": 300, "foo": 900, }
+        a, b, c = mapbind(data)
+
+        Will return data["a"], data["b"], data["c"]
+        """
+
+        caller = currentframe().f_back
+
+        if default is raise_error:
+            return (source_map[binding]
+                    for binding in bindings(caller))
+        else:
+            return (source_map.get(binding, default)
+                    for binding in bindings(caller))
+
+
+    def objbind(source_obj, default=raise_error):
+        """
+        Obtains attribute with the matching name from source_obj for each
+        binding. If default is not provided, will raise AttributeError
+        if there's no matching attribute.
+
+        eg.
+        data = some_object()
+        a, b, c = objbind(data)
+
+        Will get the attribute "a" from data, the attribute "b" from
+        data, and the attribute "c" from data, returning the results
+        in that order.
+        """
+
+        caller = currentframe().f_back
+
+        if default is raise_error:
+            return (getattr(source_obj, binding)
+                    for binding in bindings(caller))
+        else:
+            return (getattr(source_obj, binding, default)
+                    for binding in bindings(caller))
+
+
+    def funbind(fun):
+        """
+        Calls fun(NAME) to obtain the binding for each binding
+
+        eg.
+        a, b, c = funbind(my_function)
+
+        Will call my_function three times with the arguments "a", "b",
+        and "c", returning the results in that order
+        """
+
+        caller = currentframe().f_back
+        return (fn(binding) for binding in bindings(caller))
+
+
+    return mapbind, objbind, funbind
+
+
+mapbind, objbind, funbind = setup()
+del setup
 
 
 #
