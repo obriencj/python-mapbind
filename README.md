@@ -24,7 +24,7 @@ c = data["c"]
 # or like this
 a, b, c = map(data.get, ("a", "b", "c"))
 
-# then stop it. Use mapdict instead:
+# then stop it. Use mapbind instead:
 a, b, c = mapbind(data)
 ```
 
