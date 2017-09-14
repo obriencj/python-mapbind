@@ -21,7 +21,7 @@ license: LGPL v.3
 """
 
 
-__all__ = ("mapbind", "objbind", "fnbind", )
+__all__ = ("mapbind", "objbind", "funbind", )
 
 
 def setup():
@@ -186,7 +186,7 @@ def setup():
         """
 
         caller = currentframe().f_back
-        return (fn(binding) for binding in bindings(caller))
+        return (fun(binding) for binding in bindings(caller))
 
 
     return mapbind, objbind, funbind
