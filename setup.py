@@ -1,5 +1,4 @@
-#! /usr/bin/env python3
-
+#! /usr/bin/env python
 
 # This library is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as
@@ -52,6 +51,7 @@ setup(name = "mapbind",
 
       classifiers = (
           "Intended Audience :: Developers",
+          "Programming Language :: Python :: 2",
           "Programming Language :: Python :: 3",
           "Topic :: Software Development",
       )
