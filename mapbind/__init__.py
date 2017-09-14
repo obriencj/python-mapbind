@@ -27,12 +27,14 @@ __all__ = ("mapbind", "objbind", "fnbind", )
 def setup():
 
     from inspect import currentframe
-    from sys import version_info
 
-    if (2, 5) <= version_info < (3, 0):
-        # okay, we're being loaded in a Python 2 environment. There's
-        # no dis.get_instructions to import, so we'll have to make one
-        # from scratch, like biscuits.
+    try:
+        from dis import get_instructions
+
+    except ImportError:
+        # okay, we're being loaded in an older Python environment.
+        # There's no dis.get_instructions to import, so we'll have to
+        # make one from scratch, like biscuits.
 
         from collections import namedtuple
         from dis import opname, \
@@ -82,11 +84,6 @@ def setup():
                         yield instr(oparg)
                 else:
                     yield instr(None)
-
-
-    elif (3, 3) <= version_info:
-        # oh thank goodness, a good version of Python
-        from dis import get_instructions
 
 
     class RaiseError(object):
