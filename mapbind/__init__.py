@@ -21,7 +21,7 @@ license: LGPL v.3
 """
 
 
-__all__ = ("mapbind", "objbind", "funbind", )
+__all__ = ("mapbind", "objbind", "funbind", "bindings", )
 
 
 def setup():
@@ -37,9 +37,9 @@ def setup():
                  "STORE_FAST", "STORE_DEREF", )
 
     try:
-        from itertools import imap as py_map
+        from itertools import imap
     except ImportError:
-        py_map = map
+        imap = map
 
     try:
         from dis import get_instructions
@@ -65,24 +65,23 @@ def setup():
 
             code = code_obj.co_code
             free_names = code_obj.co_cellvars + code_obj.co_freevars
-            n = len(code)
-            i = 0
 
-            while i < n:
-                c = code[i]
-                op = ord(c)
+            limit = len(code)
+            index = 0
 
-                instr = partial(Instr, i, opname[op])
+            while index < limit:
+                op = ord(code[index])
+                instr = partial(Instr, index, opname[op])
+                index += 1
 
-                i += 1
                 if op >= HAVE_ARGUMENT:
                     # Totally ignoring EXTENDED_ARG. You know why?
                     # Because it'll only impact us if we have more
                     # than 65535 local variables, in which case I
                     # don't even want to work for you, you deserve to
                     # break.
-                    oparg = ord(code[i]) | (ord(code[i + 1]) << 8)
-                    i += 2
+                    oparg = ord(code[index]) | (ord(code[index + 1]) << 8)
+                    index += 2
 
                     if op in hasname:
                         yield instr(code_obj.co_names[oparg])
@@ -98,7 +97,28 @@ def setup():
 
     def bindings(caller):
         """
-        Find the names for the bindings
+        Find the names for the bindings that would be consumed by the
+        caller frame.
+
+        This is a relatively simple heuristic. unpack assignments
+        usually look something like the following
+
+        eg:  a, b, c = stuff()
+
+        0   LOAD_FAST          0 (stuff)
+        3   CALL_FUNCTION      0 (0 positional, 0 keyword pair)
+        6   UNPACK_SEQUENCE    3
+        9   STORE_FAST         1 (a)
+        12  STORE_FAST         2 (b)
+        15  STORE_FAST         3 (c)
+
+        caller will have its index at the CALL_FUNCTION point there,
+        so we skip past there and look for the argument to
+        UNPACK_SEQUENCE (which is 3 in the example above). That lets
+        us know how many STORE_FAST, STORE_GLOBAL, STORE_DEREF, or
+        STORE_NAME operations will follow. Each of those has an
+        argument that lets us figure out the name of that binding.
+        Those names, in the order they appear, are our result.
         """
 
         # find our calling frame, and the index of the op that called us
@@ -124,15 +144,19 @@ def setup():
         # many STORE_ ops from the bytecode
         count = instr.argval
 
+        found = []
+
         for _ in range(0, count):
             instr = next(iterins)
             if instr.opname in STORE_OPS:
-                yield instr.argval
+                found.append(instr.argval)
             else:
                 # wtf, nested unpack maybe? or a star function call? I
                 # say unto thee nay. NAY!
                 msg = "expected %s, got %r" % (STORE_OPS, instr.opname)
                 raise ValueError(msg)
+
+        return found
 
 
     class RaiseError(object):
@@ -141,7 +165,11 @@ def setup():
 
 
     # this is a default object for mapbind and objbind. We use it
-    # instead of None because None is a perfectly valid default value.
+    # instead of None because None would be a perfectly valid actual
+    # default value for someone to specify. The RaiseError class on
+    # the other hand, and this single instance of it in particular,
+    # has no purpose outside of this scope, so make perfect sentinel
+    # values.
     raise_error = RaiseError()
 
 
@@ -159,7 +187,7 @@ def setup():
         """
 
         caller = currentframe().f_back
-        dest_names = list(bindings(caller))
+        dest_names = bindings(caller)
 
         if default is raise_error:
             return (source_map[binding]
@@ -183,10 +211,10 @@ def setup():
         """
 
         caller = currentframe().f_back
-        dest_names = list(bindings(caller))
+        dest_names = bindings(caller)
 
         if default is raise_error:
-            return py_map(partial(getattr, source_obj), dest_names)
+            return imap(partial(getattr, source_obj), dest_names)
         else:
             return (getattr(source_obj, binding, default)
                     for binding in dest_names)
@@ -203,15 +231,15 @@ def setup():
         """
 
         caller = currentframe().f_back
-        dest_names = list(bindings(caller))
+        dest_names = bindings(caller)
 
-        return py_map(fun, dest_names)
-
-
-    return mapbind, objbind, funbind
+        return imap(fun, dest_names)
 
 
-mapbind, objbind, funbind = setup()
+    return mapbind, objbind, funbind, bindings
+
+
+mapbind, objbind, funbind, bindings = setup()
 del setup
 
 
