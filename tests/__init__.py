@@ -71,6 +71,11 @@ class TestMapBind(TestCase):
         self.assertRaises(ValueError, bad_times)
 
         def bad_times():
+            a, (b, c) = mapbind(data)
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
             noop(mapbind(data))
 
         self.assertRaises(ValueError, bad_times)
