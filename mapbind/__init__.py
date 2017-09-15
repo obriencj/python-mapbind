@@ -190,8 +190,7 @@ def setup():
         dest_names = bindings(caller)
 
         if default is raise_error:
-            return (source_map[binding]
-                    for binding in dest_names)
+            return (source_map[binding] for binding in dest_names)
         else:
             return (source_map.get(binding, default)
                     for binding in dest_names)
