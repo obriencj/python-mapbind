@@ -26,6 +26,7 @@ c = data["c"]
 a, b, c = map(data.get, ("a", "b", "c"))
 
 # then stop it. Use mapbind instead:
+from mapbind import mapbind
 a, b, c = mapbind(data)
 ```
 
@@ -34,6 +35,38 @@ out that the result is going to be used in an unpacking assignment,
 finds the names of the variables the assignment would bind to, and
 returns an iterator for the values of the given items in data with
 matching keys. Supercool.
+
+Also included are `objbind` which will find attributes on an object,
+and `funbind` which will call a function with each binding name, and
+return the result.
+
+```python
+from mapbind import objbind
+
+a, b, c = objbind(some_object)
+
+assert a == some_object.a
+assert b == some_object.b
+assert c == some_object.c
+```
+
+```python
+from mapbind import funbind
+
+accu = []
+def accumulator(name):
+	accu.append(name)
+	return "|%s|" % name
+
+a, b, c = funbind(accumulator)
+
+assert accu == ["a", "b", "c"]
+assert a == "|a|"
+assert b == "|b|"
+assert c == "|c|"
+
+```
+
 
 ## But...
 
