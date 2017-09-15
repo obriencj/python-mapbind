@@ -14,7 +14,11 @@
 
 
 """
-mapbind, a simple utility for binding vars from a map
+mapbind
+
+A simple set of functions for binding variables from a mapping, an
+object's attributes, or an arbitrary function call given the variable
+name.
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
@@ -26,22 +30,28 @@ __all__ = ("mapbind", "objbind", "funbind", "bindings", )
 
 def setup():
 
+    # So why is all of this inside of a setup function? Primarily it's
+    # because I need to do all this jackassery to find or create the
+    # get_instructions function. I also wanted to hide that RaiseError
+    # type and the raise_error instance. Once that was done, I had all
+    # these imports available as closures and it seemed silly to
+    # replicate in a slower global scope. Aesthetically, it sucks. I
+    # admit that. Oh well, more legible than the half the crap I see.
+
     from functools import partial
     from inspect import currentframe
 
-    # why are we using strings instead of integer opcodes? Because
-    # some versions of dis don't expose the constant easily, and I'm
-    # not entirely sure that the constants are constant between
-    # versions of python... but the names are!
-    STORE_OPS = ("STORE_NAME", "STORE_GLOBAL",
-                 "STORE_FAST", "STORE_DEREF", )
-
     try:
+        # I want the lazy one, because I'm lazy and I can relate to it
+        # better. Old Python put the lazy one in itertools. So unfair.
         from itertools import imap
+
     except ImportError:
+        # modern Python has its head on straight and realizes quality.
         imap = map
 
     try:
+        # newer Python's dis has get_instructions, and that's awesome.
         from dis import get_instructions
 
     except ImportError:
@@ -50,8 +60,7 @@ def setup():
         # make one from scratch, like biscuits.
 
         from collections import namedtuple
-        from dis import HAVE_ARGUMENT, \
-            opname, hasname, haslocal, hasfree
+        from dis import HAVE_ARGUMENT, opname
 
         Instr = namedtuple("Instruction", ["offset", "opname", "argval"])
 
@@ -64,34 +73,52 @@ def setup():
             """
 
             code = code_obj.co_code
-            free_names = code_obj.co_cellvars + code_obj.co_freevars
+            deref_names = code_obj.co_cellvars + code_obj.co_freevars
 
             limit = len(code)
             index = 0
 
             while index < limit:
                 op = ord(code[index])
-                instr = partial(Instr, index, opname[op])
+                name = opname[op]
+                instr = partial(Instr, index, name)
                 index += 1
 
                 if op >= HAVE_ARGUMENT:
-                    # Totally ignoring EXTENDED_ARG. You know why?
-                    # Because it'll only impact us if we have more
-                    # than 65535 local variables, in which case I
-                    # don't even want to work for you, you deserve to
-                    # break.
+                    # Read the two arg bytes. All the older Pythons
+                    # used two byte arguments, thankfully. The newer ones
+                    # change that (3.6), but they have a dis module that
+                    # can take care of those details for me.
                     oparg = ord(code[index]) | (ord(code[index + 1]) << 8)
                     index += 2
 
-                    if op in hasname:
-                        yield instr(code_obj.co_names[oparg])
-                    elif op in haslocal:
-                        yield instr(code_obj.co_varnames[oparg])
-                    elif op in hasfree:
-                        yield instr(free_names[oparg])
-                    else:
+                    # Totally ignoring EXTENDED_ARG. You know why?
+                    # Because it'll only impact us if you have more
+                    # than 65535 local variables, in which case I
+                    # don't even want to work for you, you deserve to
+                    # break.
+
+                    # I'm using the names of the op instead of their
+                    # number because some older dis versions don't
+                    # expose them as constants, and I'm not even sure
+                    # that the opcode numbers really are constant
+                    # across versions... but their names sure are! I'm
+                    # also taking advantage of the fact that these
+                    # ought to darned well be interned, so I can use
+                    # 'is' as the check.
+                    if name is "UNPACK_SEQUENCE":
                         yield instr(oparg)
+                    elif name is "STORE_FAST":
+                        yield instr(code_obj.co_varnames[oparg])
+                    elif name is "STORE_DEREF":
+                        yield instr(deref_names[oparg])
+                    elif name is "STORE_GLOBAL" or name is "STORE_NAME":
+                        yield instr(code_obj.co_names[oparg])
+                    else:
+                        # don't care.
+                        yield instr(None)
                 else:
+                    # also don't care.
                     yield instr(None)
 
 
@@ -134,10 +161,10 @@ def setup():
         else:
             assert False, "f_lasti isn't in f_code"
 
-        if instr.opname != "UNPACK_SEQUENCE":
+        if instr.opname is not "UNPACK_SEQUENCE":
             # someone invoked us without being the right-hand side of
             # an unpack assignment. WRONG.
-            msg = "expected 'UNPACK_SEQUENCE', got %r" % instr.opname
+            msg = "invoked without an unpack binding, %r" % instr.opname
             raise ValueError(msg)
 
         # this is the number of assignments being unpacked, we'll get that
@@ -148,12 +175,14 @@ def setup():
 
         for _ in range(0, count):
             instr = next(iterins)
-            if instr.opname in STORE_OPS:
+            name = instr.opname
+            if name is "STORE_FAST" or name is "STORE_DEREF" or \
+               name is "STORE_GLOBAL" or name is "STORE_NAME":
                 found.append(instr.argval)
             else:
-                # wtf, nested unpack maybe? or a star function call? I
-                # say unto thee nay. NAY!
-                msg = "expected %s, got %r" % (STORE_OPS, instr.opname)
+                # nested unpack maybe? or a star function call? I say
+                # unto thee nay. NAY!
+                msg = "unsupported non-binding operation, %r" % name
                 raise ValueError(msg)
 
         return found
@@ -161,6 +190,8 @@ def setup():
 
     class RaiseError(object):
         def __repr__(self):
+            # this makes the help for the mapbind and objbind
+            # functions look cool.
             return "<raise an error>"  # noqa
 
 
@@ -234,6 +265,13 @@ def setup():
 
         return imap(fun, dest_names)
 
+
+    # grr. qualname spoils all my lovely nested functions with horrid
+    # names. I'll fix you guys up, don't worry.
+    mapbind.__qualname__ = "mapbind.mapbind"
+    objbind.__qualname__ = "mapbind.objbind"
+    funbind.__qualname__ = "mapbind.funbind"
+    bindings.__qualname__ = "mapbind.bindings"
 
     return mapbind, objbind, funbind, bindings
 
