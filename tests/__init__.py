@@ -49,6 +49,38 @@ class TestMapBind(TestCase):
         self.assertEqual(beer, 700)
 
 
+    def test_bad_binding(self):
+        data = {"tacos": 900, "beer": 700, "a": 100, "b": 200, "c": 300, }
+
+        def noop(*args, **kwds):
+            pass
+
+        def bad_times():
+            mapbind(data)
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
+            return mapbind(data)
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
+            a = mapbind(data)
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
+            noop(mapbind(data))
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
+            noop(*mapbind(data))
+
+        self.assertRaises(ValueError, bad_times)
+
+
 class TestObjBind(TestCase):
 
     def test_present(self):

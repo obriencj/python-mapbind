@@ -28,6 +28,13 @@ def setup():
 
     from inspect import currentframe
 
+    # why are we using strings instead of integer opcodes? Because
+    # some versions of dis don't expose the constant easily, and I'm
+    # not entirely sure that the constants are constant between
+    # versions of python... but the names are!
+    STORE_OPS = set(("STORE_NAME", "STORE_GLOBAL",
+                     "STORE_FAST", "STORE_DEREF", ))
+
     try:
         from dis import get_instructions
 
@@ -71,7 +78,7 @@ def setup():
                     extended_arg = 0
                     i += 2
 
-                    if op == EXTENDED_ARG:
+                    if op == "EXTENDED_ARG":
                         extended_arg = oparg << 16
 
                     if op in hasname:
@@ -94,6 +101,8 @@ def setup():
     # instead of None because None is a perfectly valid default value.
     raise_error = RaiseError()
 
+    weirdness = "binding called without being the right-hand" \
+                " of a flat unpack assignment"
 
     def bindings(caller):
         """
@@ -110,20 +119,28 @@ def setup():
         for instr in iterins:
             if instr.offset > index:
                 break
+        else:
+            raise ValueError("couldn't find calling instruction, wtf?")
 
         if instr.opname != "UNPACK_SEQUENCE":
-            # someone invoked us without being the right-hand side of an
-            # unpack assignment, do let's be a noop
-            raise ValueError("binding called without being the right-hand"
-                             " of an unpack assignment")
+            # someone invoked us without being the right-hand side of
+            # an unpack assignment. WRONG.
+            msg = "expecging UNPACK_SEQUENCE op, got %s" % instr.opname
+            raise ValueError(msg)
 
         # this is the number of assignments being unpacked, we'll get that
         # many STORE_ ops from the bytecode
         count = instr.argval
 
-        # each STORE_ op has an argval which is the name it would assign
-        # to. This is just a convenience that the dis module fills in!
-        return (next(iterins).argval for _ in range(0, count))
+        for _ in range(0, count):
+            instr = next(iterins)
+            if instr.opname in STORE_OPS:
+                yield instr.argval
+            else:
+                # wtf, nested unpack maybe? or a star function call? I
+                # say unto thee nay. NAY!
+                msg = "expecing a STORE_* op, got %s" % instr.opname
+                raise ValueError(msg)
 
 
     def mapbind(source_map, default=raise_error):
@@ -142,11 +159,11 @@ def setup():
         caller = currentframe().f_back
 
         if default is raise_error:
-            return (source_map[binding]
-                    for binding in bindings(caller))
+            return [source_map[binding]
+                    for binding in bindings(caller)]
         else:
-            return (source_map.get(binding, default)
-                    for binding in bindings(caller))
+            return [source_map.get(binding, default)
+                    for binding in bindings(caller)]
 
 
     def objbind(source_obj, default=raise_error):
@@ -167,11 +184,11 @@ def setup():
         caller = currentframe().f_back
 
         if default is raise_error:
-            return (getattr(source_obj, binding)
-                    for binding in bindings(caller))
+            return [getattr(source_obj, binding)
+                    for binding in bindings(caller)]
         else:
-            return (getattr(source_obj, binding, default)
-                    for binding in bindings(caller))
+            return [getattr(source_obj, binding, default)
+                    for binding in bindings(caller)]
 
 
     def funbind(fun):
@@ -186,7 +203,7 @@ def setup():
         """
 
         caller = currentframe().f_back
-        return (fun(binding) for binding in bindings(caller))
+        return [fun(binding) for binding in bindings(caller)]
 
 
     return mapbind, objbind, funbind
