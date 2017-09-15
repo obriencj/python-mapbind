@@ -49,46 +49,10 @@ class TestMapBind(TestCase):
         self.assertEqual(beer, 700)
 
 
-    def test_bad_binding(self):
-        data = {"tacos": 900, "beer": 700, "a": 100, "b": 200, "c": 300, }
-
-        def noop(*args, **kwds):
-            pass
-
-        def bad_times():
-            mapbind(data)
-
-        self.assertRaises(ValueError, bad_times)
-
-        def bad_times():
-            return mapbind(data)
-
-        self.assertRaises(ValueError, bad_times)
-
-        def bad_times():
-            a = mapbind(data)
-
-        self.assertRaises(ValueError, bad_times)
-
-        def bad_times():
-            a, (b, c) = mapbind(data)
-
-        self.assertRaises(ValueError, bad_times)
-
-        def bad_times():
-            noop(mapbind(data))
-
-        self.assertRaises(ValueError, bad_times)
-
-        def bad_times():
-            noop(*mapbind(data))
-
-        self.assertRaises(ValueError, bad_times)
-
-
 class TestObjBind(TestCase):
 
-    def test_present(self):
+    @staticmethod
+    def _get_data():
         class Obj(object):
             def __init__(self):
                 self.a = 100
@@ -97,7 +61,11 @@ class TestObjBind(TestCase):
                 self.tacos = 900
                 self.beer = 700
 
-        data = Obj()
+        return Obj()
+
+
+    def test_present(self):
+        data = self._get_data()
 
         a, b, c = objbind(data)
         self.assertEqual(a, data.a)
@@ -110,15 +78,7 @@ class TestObjBind(TestCase):
 
 
     def test_missing(self):
-        class Obj(object):
-            def __init__(self):
-                self.a = 100
-                self.b = 200
-                self.c = 300
-                self.tacos = 900
-                self.beer = 700
-
-        data = Obj()
+        data = self._get_data()
 
         def bad_times():
             a, b, c, d = objbind(data)
@@ -208,6 +168,47 @@ class TestFunBind(TestCase):
             self.assertTrue(False)
         else:
             self.assertTrue(False)
+
+
+class TestBindings(TestCase):
+
+    def test_bad_binding(self):
+        def noop(*args, **kwds):
+            pass
+
+        def bad_data(name):
+            # none of these tests should ever actually get this far!
+            self.assertFalse(True)
+
+        def bad_times():
+            funbind(bad_data)
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
+            return funbind(bad_data)
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
+            a = funbind(bad_data)
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
+            a, (b, c) = funbind(bad_data)
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
+            noop(funbind(bad_data))
+
+        self.assertRaises(ValueError, bad_times)
+
+        def bad_times():
+            noop(*funbind(bad_data))
+
+        self.assertRaises(ValueError, bad_times)
 
 
 #
