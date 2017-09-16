@@ -23,7 +23,10 @@ license: LGPL v.3
 """
 
 
-from setuptools import setup
+try:
+    from setuptools import setup
+except ImportError:
+    from distutils.core import setup
 
 
 setup(name = "mapbind",
@@ -42,12 +45,6 @@ setup(name = "mapbind",
       license = "GNU Lesser General Public License v.3",
 
       description = "Local bindings from a map",
-
-      provides = ("mapbind", ),
-      requires = (),
-      platforms = (),
-
-      zip_safe = True,
 
       classifiers = (
           "Intended Audience :: Developers",

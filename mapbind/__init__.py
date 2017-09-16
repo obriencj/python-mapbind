@@ -108,17 +108,18 @@ def setup():
                     # number because some older dis versions don't
                     # expose them as constants, and I'm not even sure
                     # that the opcode numbers really are constant
-                    # across versions... but their names sure are! I'm
-                    # also taking advantage of the fact that these
-                    # ought to darned well be interned, so I can use
-                    # 'is' as the check.
-                    if name is "UNPACK_SEQUENCE":
+                    # across versions... but their names sure are!
+
+                    # PyPy string interning seems sketchy, so I use ==
+                    # instead if 'is' as the comparator.
+
+                    if name == "UNPACK_SEQUENCE":
                         yield instr(oparg)
-                    elif name is "STORE_FAST":
+                    elif name == "STORE_FAST":
                         yield instr(code_obj.co_varnames[oparg])
-                    elif name is "STORE_DEREF":
+                    elif name == "STORE_DEREF":
                         yield instr(deref_names[oparg])
-                    elif name is "STORE_GLOBAL" or name is "STORE_NAME":
+                    elif name == "STORE_GLOBAL" or name == "STORE_NAME":
                         yield instr(code_obj.co_names[oparg])
                     else:
                         # don't care.
@@ -178,7 +179,7 @@ def bindings(caller, noname=False):
     else:
         assert False, "f_lasti isn't in f_code"
 
-    if instr.opname is not "UNPACK_SEQUENCE":
+    if instr.opname != "UNPACK_SEQUENCE":
         # someone invoked us without being the right-hand side of
         # an unpack assignment. WRONG.
         msg = "invoked without an unpack binding, %r" % instr.opname
@@ -200,8 +201,8 @@ def bindings(caller, noname=False):
         instr = next(iterins)
         name = instr.opname
 
-        if name is "STORE_FAST" or name is "STORE_DEREF" or \
-           name is "STORE_GLOBAL" or name is "STORE_NAME":
+        if name == "STORE_FAST" or name == "STORE_DEREF" or \
+           name == "STORE_GLOBAL" or name == "STORE_NAME":
             found.append(instr.argval)
         else:
             # nested unpack maybe? or a star function call? I say
