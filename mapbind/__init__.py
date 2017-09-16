@@ -40,6 +40,17 @@ except ImportError:
     imap = map
 
 
+try:
+    # old Python had its lazy range named this, so let's see if it's
+    # there or not.
+    xrange
+
+except NameError:
+    # new Python just has range, which is lazy. Let's maky an alias so
+    # we can be lazy in both Pythons
+    xrange = range
+
+
 __all__ = ("mapbind", "objbind", "funbind", "takebind", "bindings", )
 
 
@@ -147,6 +158,11 @@ def bindings(caller, noname=False):
     will follow. Each of those has an argument that lets us figure out
     the name of that binding.  Those names, in the order they appear,
     are our result.
+
+    If the optional noname parameter is True, then the heuristic stops
+    after reading the count of bindings from an UNPACK_SEQUENCE op,
+    and bindings will return a simple iterable of the appropriate
+    length but with useless items (no names).
     """
 
     # find our calling frame, and the index of the op that called us
@@ -175,13 +191,12 @@ def bindings(caller, noname=False):
     if noname:
         # the noname case is when we're being called via takebind,
         # which doesn't attempt to actually use the binding names.
-        # we'll simply return an iterable of the appropriate
-        # length so it can operate on it.
-        return range(0, count)
+        # we'll simply return an xrange of the appropriate length.
+        return xrange(0, count)
 
     found = []
 
-    for _ in range(0, count):
+    for _ in xrange(0, count):
         instr = next(iterins)
         name = instr.opname
 
@@ -276,9 +291,9 @@ def funbind(fun):
     return imap(fun, dest_names)
 
 
-def takebind(generator, default=raise_error):
+def takebind(sequence, default=raise_error):
     """
-    Calls next(generator) to obtain the binding for each binding
+    Iterates over sequence to obtain the value for each binding
 
     eg.
     data = iter(range(0, 999))
@@ -291,7 +306,7 @@ def takebind(generator, default=raise_error):
     in this case nested unpacking is allowed provided the iterable
     results individually support further unpacking.
 
-    If takebind runs out of items in generator and default is not
+    If takebind runs out of items in the sequence and default is not
     specified, a ValueError will result as insufficient results will
     be returned. If default is specified, then it will be used to pad
     out the needed bindings.
@@ -300,10 +315,14 @@ def takebind(generator, default=raise_error):
     caller = currentframe().f_back
     dest_names = bindings(caller, noname=True)
 
-    if default is raise_error:
-        return islice(generator, 0, len(dest_names))
-    else:
-        return (next(generator, default) for binding in dest_names)
+    # important to note that this is a noop if sequence is already a
+    # an iterator
+    iterator = iter(sequence)
+
+    if default is not raise_error:
+        iterator = iter(partial(next, iterator, default), raise_error)
+
+    return islice(iterator, 0, len(dest_names))
 
 
 #
