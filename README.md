@@ -37,8 +37,9 @@ returns an iterator for the values of the given items in data with
 matching keys. Supercool.
 
 Also included are `objbind` which will find attributes on an object,
-and `funbind` which will call a function with each binding name, and
-return the result.
+`funbind` which will call a function for each binding name, and
+`takebind` which will return the right amount of values from a
+sequence to fulfill the count of bindings.
 
 ```python
 from mapbind import objbind
@@ -64,7 +65,23 @@ assert accu == ["a", "b", "c"]
 assert a == "|a|"
 assert b == "|b|"
 assert c == "|c|"
+```
 
+```python
+from mapbind import takebind
+
+seq = range(0, 100)
+a, b = takebind(range)
+
+assert a == 0
+assert b == 1
+
+seq = range(0, 2)
+a, b, c, d, e, f, g = takebind(range, 9001)
+
+assert a == 0
+assert b == 1
+assert [c, d, e, f, g] == [9001] * 5
 ```
 
 
