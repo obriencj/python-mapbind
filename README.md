@@ -2,15 +2,15 @@
 
 [![Build Status](https://travis-ci.org/obriencj/python-mapbind.svg?branch=master)](https://travis-ci.org/obriencj/python-mapbind)
 
-Inspects its calling frame to figure out how you were going to bind
-its results, then finds keys by those names in the given mapping and
-returns them in the appropriate order.
+Functions that inspect their calling frame to figure out how you were
+going to bind their results, and returns values appropriate for the
+bindings.
 
 
 ## Wut?
 
-A friend gave me the idea, and I wanted to see if it was
-possible. Spoilers: it totally was.
+A friend gave me the idea, and I wanted to see if it was possible.
+Spoilers: it totally was.
 
 
 ## Usage
@@ -73,7 +73,7 @@ assert c == "|c|"
 "Can't I just do `locals().update(data)`?"
 
 That only works at the global/module scope. Once you're inside of a
-function, `locals()` is nothing but a view of the underlying fast,
+function, `locals()` is nothing but a snapshot of the underlying fast,
 free, and cell variables in a call frame.
 
 
