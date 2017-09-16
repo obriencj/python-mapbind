@@ -13,7 +13,7 @@
 # <http://www.gnu.org/licenses/>.
 
 
-from mapbind import mapbind, objbind, funbind
+from mapbind import mapbind, objbind, funbind, takebind
 from unittest import TestCase
 
 
@@ -168,6 +168,49 @@ class TestFunBind(TestCase):
             self.assertTrue(False)
         else:
             self.assertTrue(False)
+
+
+class TestTakeBind(TestCase):
+
+    def test_binding(self):
+
+        data = iter(range(0, 999))
+        a, b, c = takebind(data)
+        x, y, z = takebind(data)
+
+        self.assertEqual(a, 0)
+        self.assertEqual(b, 1)
+        self.assertEqual(c, 2)
+        self.assertEqual(x, 3)
+        self.assertEqual(y, 4)
+        self.assertEqual(z, 5)
+
+
+    def test_runout(self):
+
+        data = iter(range(0, 4))
+
+        a, b, c = takebind(data)
+        self.assertEqual(a, 0)
+        self.assertEqual(b, 1)
+        self.assertEqual(c, 2)
+
+        def oops():
+            x, y, z = takebind(data)
+
+        self.assertRaises(ValueError, oops)
+
+        data = iter(range(0, 4))
+
+        a, b, c = takebind(data)
+        self.assertEqual(a, 0)
+        self.assertEqual(b, 1)
+        self.assertEqual(c, 2)
+
+        x, y, z = takebind(data, None)
+        self.assertEqual(x, 3)
+        self.assertEqual(y, None)
+        self.assertEqual(z, None)
 
 
 class TestBindings(TestCase):

@@ -25,30 +25,25 @@ license: LGPL v.3
 """
 
 
-__all__ = ("mapbind", "objbind", "funbind", "bindings", )
+from functools import partial
+from inspect import currentframe
+from itertools import islice
+
+
+try:
+    # I want the lazy one, because I'm lazy and I can relate to it
+    # better. Old Python put the lazy one in itertools. So unfair.
+    from itertools import imap
+
+except ImportError:
+    # modern Python has its head on straight and realizes quality.
+    imap = map
+
+
+__all__ = ("mapbind", "objbind", "funbind", "takebind", "bindings", )
 
 
 def setup():
-
-    # So why is all of this inside of a setup function? Primarily it's
-    # because I need to do all this jackassery to find or create the
-    # get_instructions function. I also wanted to hide that RaiseError
-    # type and the raise_error instance. Once that was done, I had all
-    # these imports available as closures and it seemed silly to
-    # replicate in a slower global scope. Aesthetically, it sucks. I
-    # admit that. Oh well, more legible than the half the crap I see.
-
-    from functools import partial
-    from inspect import currentframe
-
-    try:
-        # I want the lazy one, because I'm lazy and I can relate to it
-        # better. Old Python put the lazy one in itertools. So unfair.
-        from itertools import imap
-
-    except ImportError:
-        # modern Python has its head on straight and realizes quality.
-        imap = map
 
     try:
         # newer Python's dis has get_instructions, and that's awesome.
@@ -121,163 +116,194 @@ def setup():
                     # also don't care.
                     yield instr(None)
 
+    return get_instructions
 
-    def bindings(caller):
-        """
-        Find the names for the bindings that would be consumed by the
-        caller frame.
 
-        This is a relatively simple heuristic. unpack assignments
-        usually look something like the following
+get_instructions = setup()
+del setup
 
-        eg:  a, b, c = stuff()
 
-        0   LOAD_FAST          0 (stuff)
-        3   CALL_FUNCTION      0 (0 positional, 0 keyword pair)
-        6   UNPACK_SEQUENCE    3
-        9   STORE_FAST         1 (a)
-        12  STORE_FAST         2 (b)
-        15  STORE_FAST         3 (c)
+def bindings(caller, noname=False):
+    """
+    Find the names for the bindings that would be consumed by the
+    caller frame.
 
-        caller will have its index at the CALL_FUNCTION point there,
-        so we skip past there and look for the argument to
-        UNPACK_SEQUENCE (which is 3 in the example above). That lets
-        us know how many STORE_FAST, STORE_GLOBAL, STORE_DEREF, or
-        STORE_NAME operations will follow. Each of those has an
-        argument that lets us figure out the name of that binding.
-        Those names, in the order they appear, are our result.
-        """
+    This is a relatively simple heuristic. unpack assignments usually
+    look something like the following
 
-        # find our calling frame, and the index of the op that called us
-        code = caller.f_code
-        index = caller.f_lasti
+    eg:  a, b, c = stuff()
 
-        # disassemble the instructions for the calling frame, and advance
-        # past our calling op's index
-        iterins = get_instructions(code)
-        for instr in iterins:
-            if instr.offset > index:
-                break
+    0   LOAD_FAST          0 (stuff)
+    3   CALL_FUNCTION      0 (0 positional, 0 keyword pair)
+    6   UNPACK_SEQUENCE    3
+    9   STORE_FAST         1 (a)
+    12  STORE_FAST         2 (b)
+    15  STORE_FAST         3 (c)
+
+    caller will have its index at the CALL_FUNCTION point there, so we
+    skip past there and look for the argument to UNPACK_SEQUENCE
+    (which is 3 in the example above). That lets us know how many
+    STORE_FAST, STORE_GLOBAL, STORE_DEREF, or STORE_NAME operations
+    will follow. Each of those has an argument that lets us figure out
+    the name of that binding.  Those names, in the order they appear,
+    are our result.
+    """
+
+    # find our calling frame, and the index of the op that called us
+    code = caller.f_code
+    index = caller.f_lasti
+
+    # disassemble the instructions for the calling frame, and advance
+    # past our calling op's index
+    iterins = get_instructions(code)
+    for instr in iterins:
+        if instr.offset > index:
+            break
+    else:
+        assert False, "f_lasti isn't in f_code"
+
+    if instr.opname is not "UNPACK_SEQUENCE":
+        # someone invoked us without being the right-hand side of
+        # an unpack assignment. WRONG.
+        msg = "invoked without an unpack binding, %r" % instr.opname
+        raise ValueError(msg)
+
+    # this is the number of assignments being unpacked, we'll get that
+    # many STORE_ ops from the bytecode
+    count = instr.argval
+
+    if noname:
+        # the noname case is when we're being called via takebind,
+        # which doesn't attempt to actually use the binding names.
+        # we'll simply return an iterable of the appropriate
+        # length so it can operate on it.
+        return range(0, count)
+
+    found = []
+
+    for _ in range(0, count):
+        instr = next(iterins)
+        name = instr.opname
+
+        if name is "STORE_FAST" or name is "STORE_DEREF" or \
+           name is "STORE_GLOBAL" or name is "STORE_NAME":
+            found.append(instr.argval)
         else:
-            assert False, "f_lasti isn't in f_code"
-
-        if instr.opname is not "UNPACK_SEQUENCE":
-            # someone invoked us without being the right-hand side of
-            # an unpack assignment. WRONG.
-            msg = "invoked without an unpack binding, %r" % instr.opname
+            # nested unpack maybe? or a star function call? I say
+            # unto thee nay. NAY!
+            msg = "unsupported non-binding operation, %r" % name
             raise ValueError(msg)
 
-        # this is the number of assignments being unpacked, we'll get that
-        # many STORE_ ops from the bytecode
-        count = instr.argval
-
-        found = []
-
-        for _ in range(0, count):
-            instr = next(iterins)
-            name = instr.opname
-            if name is "STORE_FAST" or name is "STORE_DEREF" or \
-               name is "STORE_GLOBAL" or name is "STORE_NAME":
-                found.append(instr.argval)
-            else:
-                # nested unpack maybe? or a star function call? I say
-                # unto thee nay. NAY!
-                msg = "unsupported non-binding operation, %r" % name
-                raise ValueError(msg)
-
-        return found
+    return found
 
 
-    class RaiseError(object):
-        def __repr__(self):
-            # this makes the help for the mapbind and objbind
-            # functions look cool.
-            return "<raise an error>"  # noqa
+class RaiseError(object):
+    def __repr__(self):
+        # this makes the help for the mapbind and objbind
+        # functions look cool.
+        return "<raise an error>"  # noqa
 
 
-    # this is a default object for mapbind and objbind. We use it
-    # instead of None because None would be a perfectly valid actual
-    # default value for someone to specify. The RaiseError class on
-    # the other hand, and this single instance of it in particular,
-    # has no purpose outside of this scope, so make perfect sentinel
-    # values.
-    raise_error = RaiseError()
+# this is a default object for mapbind and objbind. We use it
+# instead of None because None would be a perfectly valid actual
+# default value for someone to specify. The RaiseError class on
+# the other hand, and this single instance of it in particular,
+# has no purpose outside of this scope, so make perfect sentinel
+# values.
+raise_error = RaiseError()
+del RaiseError
 
 
-    def mapbind(source_map, default=raise_error):
-        """
-        Obtains value for each matching key from source_map for each
-        binding. If default is not provided, will raise KeyError if
-        there's no matching mapping.
+def mapbind(source_map, default=raise_error):
+    """
+    Obtains value for each matching key from source_map for each
+    binding.  If default is not provided, will raise KeyError if
+    there's no matching mapping.
 
-        eg.
-        data = {"a": 100, "b": 200, "c": 300, "foo": 900, }
-        a, b, c = mapbind(data)
+    eg.
+    data = {"a": 100, "b": 200, "c": 300, "foo": 900, }
+    a, b, c = mapbind(data)
 
-        Will bind as data["a"], data["b"], data["c"]
-        """
+    Will bind as data["a"], data["b"], data["c"]
+    """
 
-        caller = currentframe().f_back
-        dest_names = bindings(caller)
+    caller = currentframe().f_back
+    dest_names = bindings(caller)
 
-        if default is raise_error:
-            return (source_map[binding] for binding in dest_names)
-        else:
-            return (source_map.get(binding, default)
-                    for binding in dest_names)
-
-
-    def objbind(source_obj, default=raise_error):
-        """
-        Obtains attribute with the matching name from source_obj for each
-        binding. If default is not provided, will raise AttributeError
-        if there's no matching attribute.
-
-        eg.
-        data = some_object()
-        a, b, c = objbind(data)
-
-        Will bind as data.a, data.b, data.c
-        """
-
-        caller = currentframe().f_back
-        dest_names = bindings(caller)
-
-        if default is raise_error:
-            return imap(partial(getattr, source_obj), dest_names)
-        else:
-            return (getattr(source_obj, binding, default)
-                    for binding in dest_names)
+    if default is raise_error:
+        return (source_map[binding] for binding in dest_names)
+    else:
+        return (source_map.get(binding, default)
+                for binding in dest_names)
 
 
-    def funbind(fun):
-        """
-        Calls fun(NAME) to obtain the binding for each binding
+def objbind(source_obj, default=raise_error):
+    """
+    Obtains attribute with the matching name from source_obj for each
+    binding.  If default is not provided, will raise AttributeError
+    if there's no matching attribute.
 
-        eg.
-        a, b, c = funbind(my_function)
+    eg.
+    data = some_object()
+    a, b, c = objbind(data)
 
-        Will bind as my_function("a"), my_function("b"), my_function("c")
-        """
+    Will bind as data.a, data.b, data.c
+    """
 
-        caller = currentframe().f_back
-        dest_names = bindings(caller)
+    caller = currentframe().f_back
+    dest_names = bindings(caller)
 
-        return imap(fun, dest_names)
-
-
-    # grr. qualname spoils all my lovely nested functions with horrid
-    # names. I'll fix you guys up, don't worry.
-    mapbind.__qualname__ = "mapbind.mapbind"
-    objbind.__qualname__ = "mapbind.objbind"
-    funbind.__qualname__ = "mapbind.funbind"
-    bindings.__qualname__ = "mapbind.bindings"
-
-    return mapbind, objbind, funbind, bindings
+    if default is raise_error:
+        return imap(partial(getattr, source_obj), dest_names)
+    else:
+        return (getattr(source_obj, binding, default)
+                for binding in dest_names)
 
 
-mapbind, objbind, funbind, bindings = setup()
-del setup
+def funbind(fun):
+    """
+    Calls fun(NAME) to obtain the binding for each binding
+
+    eg.
+    a, b, c = funbind(my_function)
+
+    Will bind as my_function("a"), my_function("b"), my_function("c")
+    """
+
+    caller = currentframe().f_back
+    dest_names = bindings(caller)
+
+    return imap(fun, dest_names)
+
+
+def takebind(generator, default=raise_error):
+    """
+    Calls next(generator) to obtain the binding for each binding
+
+    eg.
+    data = iter(range(0, 999))
+    a, b, c = takebind(data)
+    d, e, f = takebind(data)
+
+    Will only take as many items from the iterable as are needed
+    to fulfill the binding. Does nothing special with the binding
+    names, and in fact doesn't perform the normal opcode check, so
+    in this case nested unpacking is allowed provided the iterable
+    results individually support further unpacking.
+
+    If takebind runs out of items in generator and default is not
+    specified, a ValueError will result as insufficient results will
+    be returned. If default is specified, then it will be used to pad
+    out the needed bindings.
+    """
+
+    caller = currentframe().f_back
+    dest_names = bindings(caller, noname=True)
+
+    if default is raise_error:
+        return islice(generator, 0, len(dest_names))
+    else:
+        return (next(generator, default) for binding in dest_names)
 
 
 #
