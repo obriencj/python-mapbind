@@ -135,7 +135,7 @@ get_instructions = setup()
 del setup
 
 
-def bindings(caller, noname=False):
+def bindings(caller, noname=False, _cache={}):
     """
     Find the names for the bindings that would be consumed by the
     caller frame.
@@ -170,6 +170,10 @@ def bindings(caller, noname=False):
     code = caller.f_code
     index = caller.f_lasti
 
+    cache_key = (code, index)
+    if cache_key in _cache:
+        return _cache[cache_key]
+
     # disassemble the instructions for the calling frame, and advance
     # past our calling op's index
     iterins = get_instructions(code)
@@ -193,7 +197,9 @@ def bindings(caller, noname=False):
         # the noname case is when we're being called via takebind,
         # which doesn't attempt to actually use the binding names.
         # we'll simply return an xrange of the appropriate length.
-        return xrange(0, count)
+        result = xrange(0, count)
+        _cache[cache_key] = result
+        return result
 
     found = []
 
@@ -210,6 +216,7 @@ def bindings(caller, noname=False):
             msg = "unsupported non-binding operation, %r" % name
             raise ValueError(msg)
 
+    _cache[cache_key] = found
     return found
 
 
