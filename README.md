@@ -71,13 +71,13 @@ assert c == "|c|"
 from mapbind import takebind
 
 seq = range(0, 100)
-a, b = takebind(range)
+a, b = takebind(seq)
 
 assert a == 0
 assert b == 1
 
 seq = range(0, 2)
-a, b, c, d, e, f, g = takebind(range, 9001)
+a, b, c, d, e, f, g = takebind(seq, 9001)
 
 assert a == 0
 assert b == 1
