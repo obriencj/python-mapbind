@@ -172,7 +172,7 @@ class TestFunBind(TestCase):
 
 class TestBindings(TestCase):
 
-    def test_bad_binding(self):
+    def test_bad(self):
         def noop(*args, **kwds):
             pass
 
@@ -209,6 +209,23 @@ class TestBindings(TestCase):
             noop(*funbind(bad_data))
 
         self.assertRaises(ValueError, bad_times)
+
+
+    def test_global(self):
+
+        accu = []
+        def accumulate(name):
+            accu.append(name)
+            return "|%s|" % name
+
+        global x
+
+        a, x = funbind(accumulate)
+
+        self.assertEqual(accu, ["a", "x"])
+        self.assertEqual(a, "|a|")
+        self.assertEqual(x, "|x|")
+        self.assertEqual(x, globals()["x"])
 
 
 #
