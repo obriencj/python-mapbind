@@ -94,6 +94,21 @@ function, `locals()` is nothing but a snapshot of the underlying fast,
 free, and cell variables in a call frame.
 
 
+## Supported Versions
+
+This has been tested as working on the following versions and
+implementations of Python
+
+* Python 2.6, 2.7
+* Python 3.4, 3.5, 3.6
+* PyPy, PyPy3
+
+It is implemented entirely in Python (no native extensions). It has no
+runtime dependencies outside of itself and those provided as part of
+the standard Python environment, though to run the unit tests you'll
+need setuptools.
+
+
 ## Contact
 
 author: Christopher O'Brien  <obriencj@gmail.com>
