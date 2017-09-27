@@ -94,6 +94,38 @@ function, `locals()` is nothing but a snapshot of the underlying fast,
 free, and cell variables in a call frame.
 
 
+## What Doesn't It Do
+
+Mapbind's purpose is specific to unpacking for variable assignment.
+Not for item assignment, not for member assignment. All of the
+following will result in an exception being raised.
+
+```python
+# You only want one member? Then just get it directly, no need for
+# mapbind. This is an error.
+a = mapbind(my_data)
+
+# this kind of nesting makes zero sense in the context of mapbind, so
+# don't do it. If you do, it's an error.
+a, (b, c) = mapbind(my_data)
+
+# copying from one map to another is something you can do already, no
+# need for mapbind, so this is an error.
+x["a"], x["b"], x["c"] = mapbind(my_data)
+
+# likewise, updating the attributes of an object from a map is
+# something you can do already, no need for mapbind, so this is an
+# error as well.
+x.a, x.b, x.c = mapbind(my_data)
+```
+
+It is trivial to write a function that will update a map or an
+object's attributes from a map given a list of keys. There's no reason
+for mapbind to support that use case. Mapbind is specifically for
+situations where the list of keys can be determined entirely from the
+storage variable names.
+
+
 ## Supported Versions
 
 This has been tested as working on the following versions and
