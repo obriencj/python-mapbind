@@ -74,8 +74,8 @@ def setup():
             """
             a cheap knock-off of the get_instructions function from the
             Python3 version of the dis module. In this case, since we
-            only care about some of the opcodes, we're only filling
-            all the data for those ones in.
+            only care about some of the opcodes, we're only filling in
+            the relevant data for those.
             """
 
             code = code_obj.co_code
@@ -254,7 +254,10 @@ def mapbind(source_map, default=raise_error):
     dest_names = bindings(caller)
 
     if default is raise_error:
-        return (source_map[binding] for binding in dest_names)
+        # why are we using imap instead of a generator? Because with
+        # this, any exceptions raised will not show as having come
+        # from inside the mapbind function.
+        return imap(source_map.__getitem__, dest_names)
     else:
         return (source_map.get(binding, default)
                 for binding in dest_names)
@@ -277,6 +280,9 @@ def objbind(source_obj, default=raise_error):
     dest_names = bindings(caller)
 
     if default is raise_error:
+        # similarly to the mapbind case, using an imap and a partial
+        # prevents any backtrace from peering into the objbind
+        # function.
         return imap(partial(getattr, source_obj), dest_names)
     else:
         return (getattr(source_obj, binding, default)
@@ -285,7 +291,9 @@ def objbind(source_obj, default=raise_error):
 
 def funbind(fun):
     """
-    Calls fun(NAME) to obtain the binding for each binding
+    Calls fun(NAME) to obtain the value for each binding, where NAME
+    will be the binding variable name. Will be called from left to
+    right.
 
     eg.
     a, b, c = funbind(my_function)
@@ -296,6 +304,8 @@ def funbind(fun):
     caller = currentframe().f_back
     dest_names = bindings(caller)
 
+    # the use of imap means funbind won't be part of backtraces if fun
+    # raises an exception.
     return imap(fun, dest_names)
 
 
@@ -328,8 +338,19 @@ def takebind(sequence, default=raise_error):
     iterator = iter(sequence)
 
     if default is not raise_error:
+        # we don't want to raise an exception for running out of our
+        # sequence, so let's wrap each step as a call to next with the
+        # default value filled in. Thus when we run out of actual
+        # sequence, we'll start emitting the default value
+        # infinitely. Note that I'm re-purposing the raise_error
+        # object instance as a sentinel value -- this form of iter
+        # will stop when the result of the callable returns the
+        # sentinel. Since we don't actually want it to ever stop,
+        # we'll use a sentinel that should never actually happen,
+        # which we conveniently already had!
         iterator = iter(partial(next, iterator, default), raise_error)
 
+    # and now we just slice our sequence to the right length.
     return islice(iterator, 0, len(dest_names))
 
 
