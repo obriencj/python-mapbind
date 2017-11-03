@@ -56,6 +56,8 @@ __all__ = ("mapbind", "objbind", "funbind", "takebind", "bindings", )
 
 def setup():
 
+    from sys import version_info
+
     try:
         # newer Python's dis has get_instructions, and that's awesome.
         from dis import get_instructions
@@ -67,6 +69,25 @@ def setup():
 
         from collections import namedtuple
         from dis import HAVE_ARGUMENT, opname
+
+        if (2, 0) <= version_info < (3, 0):
+            # if we're working on a Python2 environment, then the code
+            # will be a str and we'll need to run ord on each op.
+            def get(code, index):
+                return ord(code[index])
+
+        elif (3, 0) <= version_info < (4, 0):
+            # otherwise, on a Python3 environment, then the code will
+            # be a bytes object
+            def get(code, index):
+                return code[index]
+
+        else:
+            # if we reach this point then we couldn't find a working
+            # get_instructions, and we aren't sure about how to make
+            # one of our own, so we cannot support whatever version
+            # this is. But hey, we tried.
+            raise NotImplementedError("Unsupported Python version")
 
         Instr = namedtuple("Instruction", ["offset", "opname", "argval"])
 
@@ -85,7 +106,7 @@ def setup():
             index = 0
 
             while index < limit:
-                op = ord(code[index])
+                op = get(code, index)
                 name = opname[op]
                 instr = partial(Instr, index, name)
                 index += 1
@@ -95,7 +116,7 @@ def setup():
                     # used two byte arguments, thankfully. The newer ones
                     # change that (3.6), but they have a dis module that
                     # can take care of those details for me.
-                    oparg = ord(code[index]) | (ord(code[index + 1]) << 8)
+                    oparg = get(code, index) | (get(code, index + 1) << 8)
                     index += 2
 
                     # Totally ignoring EXTENDED_ARG. You know why?
