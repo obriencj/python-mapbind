@@ -1,6 +1,9 @@
 
 language: python
 
+# needs this for travis to support 3.7
+dist: xenial
+
 python:
   - "2.6"
   - "2.7"
@@ -8,6 +11,7 @@ python:
   - "3.4"
   - "3.5"
   - "3.6"
+  - "3.7"
   - "pypy"
   - "pypy3"
 

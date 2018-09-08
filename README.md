@@ -131,7 +131,7 @@ This has been tested as working on the following versions and
 implementations of Python
 
 * Python 2.6, 2.7
-* Python 3.3, 3.4, 3.5, 3.6
+* Python 3.3, 3.4, 3.5, 3.6, 3.7
 * PyPy, PyPy3
 
 It is implemented entirely in Python (no native extensions). It has no
