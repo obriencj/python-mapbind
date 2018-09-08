@@ -113,10 +113,9 @@ a, (b, c) = mapbind(my_data)
 # need for mapbind, so this is an error.
 x["a"], x["b"], x["c"] = mapbind(my_data)
 
-# likewise, updating the attributes of an object from a map is
-# something you can do already, no need for mapbind, so this is an
-# error as well.
-x.a, x.b, x.c = mapbind(my_data)
+# we don't support this because the assignment operations are
+# interleaved with expressions to load their owning object.
+x.a, y.b, z.c = mapbind(my_data)
 ```
 
 It is trivial to write a function that will update a map or an
