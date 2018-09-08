@@ -228,8 +228,8 @@ def bindings(caller, noname=False, _cache={}):
         instr = next(iterins)
         name = instr.opname
 
-        if name == "STORE_FAST" or name == "STORE_DEREF" or \
-           name == "STORE_GLOBAL" or name == "STORE_NAME":
+        if name in ("STORE_FAST", "STORE_DEREF",
+                    "STORE_GLOBAL", "STORE_NAME"):
             found.append(instr.argval)
         else:
             # nested unpack maybe? or a star function call? I say
