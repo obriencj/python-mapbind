@@ -44,6 +44,10 @@ sequence to fulfill the count of bindings.
 ```python
 from mapbind import objbind
 
+# objbind will notice that its assignment is to the variables named "a",
+# "b", and "c" and will subsequently fetch attributes with those names
+# from some_object and return a 3-tuple of their values.
+
 a, b, c = objbind(some_object)
 
 assert a == some_object.a
@@ -59,6 +63,10 @@ def accumulator(name):
 	accu.append(name)
 	return "|%s|" % name
 
+# funbind will notice that its assignment is to the variables named "a",
+# "b", and "c" and will subsequently invoke accumulator with those strings
+# in turn, returning a 3-tuple of their values.
+
 a, b, c = funbind(accumulator)
 
 assert accu == ["a", "b", "c"]
@@ -70,11 +78,17 @@ assert c == "|c|"
 ```python
 from mapbind import takebind
 
+# Even though a range is huge, takebind will snag exactly as many items
+# from it as you're going to assign to.
+
 seq = range(0, 100)
 a, b = takebind(seq)
 
 assert a == 0
 assert b == 1
+
+# And if you have too small of a range, you can tell takebind how you'd
+# like it to pad out any missing assignments
 
 seq = range(0, 2)
 a, b, c, d, e, f, g = takebind(seq, 9001)
