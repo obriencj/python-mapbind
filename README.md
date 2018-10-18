@@ -60,8 +60,8 @@ from mapbind import funbind
 
 accu = []
 def accumulator(name):
-	accu.append(name)
-	return "|%s|" % name
+    accu.append(name)
+    return "|%s|" % name
 
 # funbind will notice that its assignment is to the variables named "a",
 # "b", and "c" and will subsequently invoke accumulator with those strings
