@@ -30,7 +30,7 @@ except ImportError:
 
 
 setup(name = "mapbind",
-      version = "1.0.0",
+      version = "1.1.0",
 
       packages = (
           "mapbind",
@@ -46,7 +46,7 @@ setup(name = "mapbind",
 
       description = "Assignment-aware binding functions",
 
-      download_url = "https://github.com/obriencj/python-mapbind/archive/v1.0.0.tar.gz",
+      download_url = "https://github.com/obriencj/python-mapbind/archive/v1.1.0.tar.gz",
 
       # 2.6+ or 3.3+
       python_requires = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, <4",
