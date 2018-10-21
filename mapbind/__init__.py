@@ -31,6 +31,16 @@ from itertools import islice
 
 
 try:
+    from dis import get_instructions
+
+except ImportError:
+    # okay, we're being loaded in an older Python environment. There's
+    # no dis.get_instructions to import, so we'll have to make one
+    # from scratch, like biscuits.
+    from ._dis import get_instructions
+
+
+try:
     # I want the lazy one, because I'm lazy and I can relate to it
     # better. Old Python put the lazy one in itertools. So unfair.
     from itertools import imap
@@ -52,108 +62,6 @@ except NameError:
 
 
 __all__ = ("mapbind", "objbind", "funbind", "takebind", "bindings", )
-
-
-def setup():
-
-    from sys import version_info
-
-    try:
-        # newer Python's dis has get_instructions, and that's awesome.
-        from dis import get_instructions
-
-    except ImportError:
-        # okay, we're being loaded in an older Python environment.
-        # There's no dis.get_instructions to import, so we'll have to
-        # make one from scratch, like biscuits.
-
-        from collections import namedtuple
-        from dis import HAVE_ARGUMENT, opname
-
-        if (2, 0) <= version_info < (3, 0):
-            # if we're working on a Python2 environment, then the code
-            # will be a str and we'll need to run ord on each op.
-            def get(code, index):
-                return ord(code[index])
-
-        elif (3, 0) <= version_info < (4, 0):
-            # otherwise, on a Python3 environment, then the code will
-            # be a bytes object
-            def get(code, index):
-                return code[index]
-
-        else:
-            # if we reach this point then we couldn't find a working
-            # get_instructions, and we aren't sure about how to make
-            # one of our own, so we cannot support whatever version
-            # this is. But hey, we tried.
-            raise NotImplementedError("Unsupported Python version")
-
-        Instr = namedtuple("Instruction", ["offset", "opname", "argval"])
-
-        def get_instructions(code_obj):
-            """
-            a cheap knock-off of the get_instructions function from the
-            Python3 version of the dis module. In this case, since we
-            only care about some of the opcodes, we're only filling in
-            the relevant data for those.
-            """
-
-            code = code_obj.co_code
-            deref_names = code_obj.co_cellvars + code_obj.co_freevars
-
-            limit = len(code)
-            index = 0
-
-            while index < limit:
-                op = get(code, index)
-                name = opname[op]
-                instr = partial(Instr, index, name)
-                index += 1
-
-                if op >= HAVE_ARGUMENT:
-                    # Read the two arg bytes. All the older Pythons
-                    # used two byte arguments, thankfully. The newer ones
-                    # change that (3.6), but they have a dis module that
-                    # can take care of those details for me.
-                    oparg = get(code, index) | (get(code, index + 1) << 8)
-                    index += 2
-
-                    # Totally ignoring EXTENDED_ARG. You know why?
-                    # Because it'll only impact us if you have more
-                    # than 65535 local variables, in which case I
-                    # don't even want to work for you, you deserve to
-                    # break.
-
-                    # I'm using the names of the op instead of their
-                    # number because some older dis versions don't
-                    # expose them as constants, and I'm not even sure
-                    # that the opcode numbers really are constant
-                    # across versions... but their names sure are!
-
-                    # PyPy string interning seems sketchy, so I use ==
-                    # instead if 'is' as the comparator.
-
-                    if name == "UNPACK_SEQUENCE":
-                        yield instr(oparg)
-                    elif name == "STORE_FAST":
-                        yield instr(code_obj.co_varnames[oparg])
-                    elif name == "STORE_DEREF":
-                        yield instr(deref_names[oparg])
-                    elif name == "STORE_GLOBAL" or name == "STORE_NAME":
-                        yield instr(code_obj.co_names[oparg])
-                    else:
-                        # don't care.
-                        yield instr(None)
-                else:
-                    # also don't care.
-                    yield instr(None)
-
-    return get_instructions
-
-
-get_instructions = setup()
-del setup
 
 
 def bindings(caller, noname=False, _cache={}):
