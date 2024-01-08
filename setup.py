@@ -28,43 +28,8 @@ try:
 except ImportError:
     from distutils.core import setup
 
-
-setup(name = "mapbind",
-      version = "1.1.0",
-
-      packages = (
-          "mapbind",
-      ),
-
-      test_suite = "tests",
-
-      # PyPI information
-      author = "Christopher O'Brien",
-      author_email = "obriencj@gmail.com",
-      url = "https://github.com/obriencj/python-mapbind",
-      license = "GNU Lesser General Public License v.3",
-
-      description = "Assignment-aware binding functions",
-
-      download_url = "https://github.com/obriencj/python-mapbind/archive/v1.1.0.tar.gz",
-
-      # 2.6+ or 3.3+
-      python_requires = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, <4",
-
-      classifiers = [
-          "Intended Audience :: Developers",
-          "Programming Language :: Python :: 2.6",
-          "Programming Language :: Python :: 2.7",
-          "Programming Language :: Python :: 3.3",
-          "Programming Language :: Python :: 3.4",
-          "Programming Language :: Python :: 3.5",
-          "Programming Language :: Python :: 3.6",
-          "Programming Language :: Python :: Implementation :: CPython",
-          "Programming Language :: Python :: Implementation :: PyPy",
-          "Topic :: Software Development",
-      ]
-)
+if __name__ == "__main__":
+    setup()
 
 
-#
 # The end.
