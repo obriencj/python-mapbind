@@ -1,7 +1,5 @@
 # Overview of python-mapbind
 
-[![Build Status](https://travis-ci.org/obriencj/python-mapbind.svg?branch=master)](https://travis-ci.org/obriencj/python-mapbind)
-
 Functions that inspect their calling frame to figure out how you were
 going to bind their results, and returns values appropriate for the
 bindings.
