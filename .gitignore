@@ -1,4 +1,4 @@
-*#
+*\#
 *.bak
 *.egg-info
 *.gz
@@ -6,8 +6,9 @@
 *.so
 *.tar
 *~
-.#*
+.\#*
 .coverage
+.tox
 MANIFEST
 __pycache__
 _build
